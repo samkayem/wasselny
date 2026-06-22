@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wasselny — سائق</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">Wasselny</span>
+    <span class="tag">سائق</span>
+  </div>
+  <main>
+
+    <!-- تسجيل الدخول / إنشاء حساب -->
+    <div id="authBox" class="card" style="display:none">
+      <div class="tabs">
+        <button id="tabLogin" class="active">تسجيل الدخول</button>
+        <button id="tabRegister">حساب جديد</button>
+      </div>
+
+      <form id="loginForm">
+        <label>رقم الهاتف</label>
+        <input name="phone" required>
+        <label>كلمة السر</label>
+        <input name="password" type="password" required>
+        <button class="btn-primary" type="submit">دخول</button>
+      </form>
+
+      <form id="registerForm" style="display:none" enctype="multipart/form-data">
+        <label>الاسم الكامل</label>
+        <input name="name" required>
+        <label>رقم الهاتف</label>
+        <input name="phone" required>
+        <label>كلمة السر</label>
+        <input name="password" type="password" required>
+        <label>رقم الهوية</label>
+        <input name="nationalId" required>
+        <label>رقم رخصة القيادة / دفتر السير</label>
+        <input name="licenseNumber" required>
+        <label>صورة الهوية</label>
+        <input name="idPhoto" type="file" accept="image/*" required>
+        <label>صورة رخصة القيادة / دفتر السير</label>
+        <input name="licensePhoto" type="file" accept="image/*" required>
+        <p class="muted">تُستخدم هذه الصور للتحقق مرة واحدة فقط من قبل الإدارة، وتُحذف فوراً بعد الموافقة. حسابك يبقى "قيد المراجعة" حتى تتم الموافقة.</p>
+        <button class="btn-primary" type="submit">إرسال طلب التسجيل</button>
+      </form>
+    </div>
+
+    <!-- الواجهة الرئيسية -->
+    <div id="appBox" style="display:none">
+
+      <div class="card">
+        <h2>الحالة</h2>
+        <p id="statusLabel"><span class="badge badge-off">غير متوفر</span></p>
+        <button class="btn-secondary" id="toggleBtn">تفعيل الاستعداد لاستقبال الطلبات</button>
+        <p class="muted" id="wakeLockNote" style="display:none">💡 أبقِ الشاشة مفتوحة والتبويب في المقدمة أثناء الانتظار لاستقبال الطلبات.</p>
+      </div>
+
+      <div id="manualMapCard" class="card" style="display:none">
+        <h2>حدّد موقعك يدوياً</h2>
+        <p class="muted">تعذّر تحديد موقعك تلقائياً. اضغط على نقطة في الخريطة تمثّل موقعك الحالي.</p>
+        <div id="map"></div>
+      </div>
+
+      <div id="incomingCard" class="card" style="display:none">
+        <h2>🔔 طلب رحلة جديد</h2>
+        <p id="incomingInfo"></p>
+        <div class="row">
+          <button class="btn-primary" id="acceptBtn">قبول</button>
+          <button class="btn-danger" id="rejectBtn">رفض</button>
+        </div>
+      </div>
+
+      <div id="activeTripCard" class="card" style="display:none">
+        <h2>الرحلة الحالية</h2>
+        <p id="activeTripInfo"></p>
+        <label>السعر المتفق عليه (بالدولار أو ليرة، حسب اتفاقكما)</label>
+        <input id="priceInput" type="number" min="0" step="0.5" placeholder="مثال: 3">
+        <button class="btn-primary" id="completeBtn">إنهاء الرحلة وتسجيل السعر</button>
+      </div>
+
+      <button class="btn-ghost" id="logoutBtn">تسجيل الخروج</button>
+    </div>
+  </main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/api.js"></script>
+<script>
+let watchId = null;
+let pollTimer = null;
+let wakeLock = null;
+let currentAvailable = false;
+let lastIncomingId = null;
+let driverMap = null;
+let cachedLat = null, cachedLng = null;
+
+// نطلب الموقع فوراً عند الدخول (دون تفعيل الاستعداد تلقائياً) — هذا يجعل الضغط على
+// "تفعيل الاستعداد" لاحقاً فورياً بدون انتظار، لأن المتصفح يكون قد استجاب للإذن مسبقاً
+function prefetchLocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => { cachedLat = pos.coords.latitude; cachedLng = pos.coords.longitude; },
+    () => {}, // فشل صامت هنا فقط؛ سيُعرض الخيار اليدوي عند الضغط الفعلي على "تفعيل الاستعداد"
+    { timeout: 8000, maximumAge: 30000 }
+  );
+}
+
+// ---------- صوت تنبيه بسيط بدون أي ملف خارجي ----------
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.value = 0.15;
+    osc.start();
+    setTimeout(() => { osc.stop(); ctx.close(); }, 350);
+  } catch (e) { /* تجاهل إن لم يدعم المتصفح */ }
+}
+
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (e) { /* بعض المتصفحات لا تدعمها — لا بأس */ }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+// ---------- تبديل حالة الاستعداد ----------
+document.getElementById('toggleBtn').onclick = async () => {
+  if (!currentAvailable) {
+    tryGoAvailableAutomatically();
+  } else {
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    document.getElementById('manualMapCard').style.display = 'none';
+    await setAvailability(false);
+  }
+};
+
+function tryGoAvailableAutomatically() {
+  if (cachedLat != null && cachedLng != null) {
+    return goAvailableWithLocation(cachedLat, cachedLng);
+  }
+  if (!navigator.geolocation) return showManualMap();
+  navigator.geolocation.getCurrentPosition(
+    (pos) => goAvailableWithLocation(pos.coords.latitude, pos.coords.longitude),
+    () => showManualMap(),
+    { timeout: 6000 }
+  );
+}
+
+function showManualMap() {
+  toast('تعذّر تحديد موقعك تلقائياً، اضغط على موقعك في الخريطة أدناه');
+  document.getElementById('manualMapCard').style.display = 'block';
+  if (!driverMap) {
+    driverMap = L.map('map').setView([33.5571, 35.3729], 14); // صيدا تقريباً
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(driverMap);
+    driverMap.on('click', (e) => {
+      document.getElementById('manualMapCard').style.display = 'none';
+      goAvailableWithLocation(e.latlng.lat, e.latlng.lng);
+    });
+  }
+}
+
+async function goAvailableWithLocation(lat, lng) {
+  await setAvailability(true, lat, lng);
+  if (navigator.geolocation) {
+    watchId = navigator.geolocation.watchPosition(
+      (p) => setAvailability(true, p.coords.latitude, p.coords.longitude),
+      () => {}, // إذا فشل التحديث المستمر، يبقى آخر موقع معروف ساري المفعول
+      { enableHighAccuracy: false, maximumAge: 10000 }
+    );
+  }
+}
+
+async function setAvailability(available, lat, lng) {
+  try {
+    await api('/drivers/status', { method: 'POST', body: { status: available ? 'available' : 'offline', lat, lng } });
+    currentAvailable = available;
+    document.getElementById('statusLabel').innerHTML = available
+      ? '<span class="badge badge-ok">متوفر — بانتظار طلبات</span>'
+      : '<span class="badge badge-off">غير متوفر</span>';
+    document.getElementById('toggleBtn').textContent = available ? 'إيقاف الاستعداد' : 'تفعيل الاستعداد لاستقبال الطلبات';
+    document.getElementById('wakeLockNote').style.display = available ? 'block' : 'none';
+    if (available) { requestWakeLock(); startPolling(); }
+    else { releaseWakeLock(); }
+  } catch (e) { toast(e.message); }
+}
+
+// ---------- فحص دوري للطلبات الواردة والرحلة الحالية ----------
+async function pollLoop() {
+  try {
+    const { trip: activeTrip } = await api('/trips/mine');
+    if (activeTrip && activeTrip.status === 'accepted') {
+      showActiveTrip(activeTrip);
+      hideIncoming();
+      return;
+    }
+    hideActiveTrip();
+
+    const { trip } = await api('/trips/incoming');
+    if (trip) {
+      if (trip.id !== lastIncomingId) { beep(); lastIncomingId = trip.id; }
+      showIncoming(trip);
+    } else {
+      lastIncomingId = null;
+      hideIncoming();
+    }
+  } catch (e) { /* تجاهل أخطاء الشبكة المؤقتة */ }
+}
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollLoop, 4000);
+  pollLoop();
+}
+
+let currentIncoming = null;
+function showIncoming(trip) {
+  currentIncoming = trip;
+  document.getElementById('incomingCard').style.display = 'block';
+  document.getElementById('incomingInfo').innerHTML =
+    `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}`;
+}
+function hideIncoming() {
+  currentIncoming = null;
+  document.getElementById('incomingCard').style.display = 'none';
+}
+
+document.getElementById('acceptBtn').onclick = async () => {
+  if (!currentIncoming) return;
+  try {
+    await api(`/trips/${currentIncoming.id}/accept`, { method: 'POST' });
+    toast('تم قبول الطلب');
+    hideIncoming();
+    pollLoop();
+  } catch (e) { toast(e.message); }
+};
+document.getElementById('rejectBtn').onclick = async () => {
+  if (!currentIncoming) return;
+  try {
+    await api(`/trips/${currentIncoming.id}/reject`, { method: 'POST' });
+    hideIncoming();
+  } catch (e) { toast(e.message); }
+};
+
+let currentActiveTrip = null;
+function showActiveTrip(trip) {
+  currentActiveTrip = trip;
+  document.getElementById('activeTripCard').style.display = 'block';
+  document.getElementById('activeTripInfo').innerHTML =
+    `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}`;
+}
+function hideActiveTrip() {
+  currentActiveTrip = null;
+  document.getElementById('activeTripCard').style.display = 'none';
+}
+
+document.getElementById('completeBtn').onclick = async () => {
+  if (!currentActiveTrip) return;
+  const price = document.getElementById('priceInput').value;
+  try {
+    await api(`/trips/${currentActiveTrip.id}/complete`, { method: 'POST', body: { price } });
+    toast('تم إنهاء الرحلة وتسجيل السعر');
+    hideActiveTrip();
+    currentAvailable = false;
+    document.getElementById('statusLabel').innerHTML = '<span class="badge badge-off">غير متوفر</span>';
+    document.getElementById('toggleBtn').textContent = 'تفعيل الاستعداد لاستقبال الطلبات';
+    document.getElementById('wakeLockNote').style.display = 'none';
+  } catch (e) { toast(e.message); }
+};
+
+// ---------- تسجيل الدخول / الحساب ----------
+document.getElementById('tabLogin').onclick = () => {
+  document.getElementById('tabLogin').classList.add('active');
+  document.getElementById('tabRegister').classList.remove('active');
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('registerForm').style.display = 'none';
+};
+document.getElementById('tabRegister').onclick = () => {
+  document.getElementById('tabRegister').classList.add('active');
+  document.getElementById('tabLogin').classList.remove('active');
+  document.getElementById('registerForm').style.display = 'block';
+  document.getElementById('loginForm').style.display = 'none';
+};
+
+document.getElementById('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    const data = await api('/auth/login-driver', { method: 'POST', body: { phone: fd.get('phone'), password: fd.get('password') } });
+    onLoggedIn(data);
+  } catch (err) { toast(err.message); }
+};
+
+document.getElementById('registerForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target); // FormData لإرسال الملفات (multipart)
+  try {
+    const data = await api('/auth/register-driver', { method: 'POST', body: fd });
+    toast(data.message);
+    e.target.reset();
+    document.getElementById('tabLogin').click();
+  } catch (err) { toast(err.message); }
+};
+
+function onLoggedIn(data) {
+  setToken(data.token);
+  localStorage.setItem('waslni_role', 'driver');
+  localStorage.setItem('waslni_name', data.name);
+  showApp();
+}
+
+document.getElementById('logoutBtn').onclick = () => {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  releaseWakeLock();
+  clearToken();
+  location.reload();
+};
+
+function showApp() {
+  document.getElementById('authBox').style.display = 'none';
+  document.getElementById('appBox').style.display = 'block';
+  startPolling();
+  prefetchLocation(); // اطلب إذن الموقع فوراً عند الدخول لتسريع تفعيل الاستعداد لاحقاً
+}
+
+// ---------- البدء ----------
+if (getToken() && localStorage.getItem('waslni_role') === 'driver') {
+  showApp();
+} else {
+  document.getElementById('authBox').style.display = 'block';
+}
+</script>
+</body>
+</html>

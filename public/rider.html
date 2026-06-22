@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wasselny — راكب</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">Wasselny</span>
+    <span class="tag">راكب</span>
+  </div>
+  <main>
+
+    <!-- تسجيل الدخول / إنشاء حساب -->
+    <div id="authBox" class="card" style="display:none">
+      <div class="tabs">
+        <button id="tabLogin" class="active">تسجيل الدخول</button>
+        <button id="tabRegister">حساب جديد</button>
+      </div>
+
+      <form id="loginForm">
+        <label>رقم الهاتف</label>
+        <input name="phone" required>
+        <label>كلمة السر</label>
+        <input name="password" type="password" required>
+        <button class="btn-primary" type="submit">دخول</button>
+      </form>
+
+      <form id="registerForm" style="display:none">
+        <label>الاسم الكامل</label>
+        <input name="name" required>
+        <label>رقم الهاتف</label>
+        <input name="phone" required>
+        <label>كلمة السر</label>
+        <input name="password" type="password" required>
+        <button class="btn-primary" type="submit">إنشاء حساب</button>
+      </form>
+    </div>
+
+    <!-- الواجهة الرئيسية بعد الدخول -->
+    <div id="appBox" style="display:none">
+
+      <div class="card">
+        <h2>موقعك الحالي</h2>
+        <div id="map"></div>
+        <button class="btn-secondary" id="locateBtn">📍 تحديد موقعي تلقائياً</button>
+        <p class="muted">أو اضغط على نقطة في الخريطة لتحديد مكان الانطلاق يدوياً.</p>
+      </div>
+
+      <div id="requestSection" class="card">
+        <h2>طلب رحلة</h2>
+        <label>الوجهة (وصف نصي)</label>
+        <input id="destInput" placeholder="مثال: ساحة النجمة، صيدا">
+        <button class="btn-primary" id="requestBtn" style="margin-top:14px">طلب رحلة</button>
+        <p class="muted" style="margin-top:8px">سيختار النظام أقرب سائق متوفر تلقائياً ويرسل له طلبك.</p>
+      </div>
+
+      <div id="tripSection" class="card" style="display:none">
+        <h2>رحلتك الحالية</h2>
+        <div id="tripStatus"></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:8px">
+          <h2 style="margin:0">رحلاتي الأخيرة وتقديم شكوى</h2>
+          <button class="btn-sm btn-ghost" id="refreshHistory" style="flex:0 0 auto">تحديث</button>
+        </div>
+        <div id="historyList"><p class="muted">لا توجد رحلات سابقة بعد.</p></div>
+      </div>
+
+      <button class="btn-ghost" id="logoutBtn">تسجيل الخروج</button>
+    </div>
+  </main>
+
+  <div id="complaintOverlay" style="display:none; position:fixed; inset:0; background:rgba(20,48,43,0.85); align-items:center; justify-content:center; z-index:1000; padding:20px;">
+    <div class="card" style="max-width:380px; width:100%">
+      <h2>تقديم شكوى</h2>
+      <textarea id="complaintText" rows="4" placeholder="اشرح المشكلة بالتفصيل..."></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-primary" id="sendComplaintBtn">إرسال</button>
+        <button class="btn-ghost" id="cancelComplaintBtn">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/api.js"></script>
+<script>
+let map, pickupMarker;
+let pickupLat = null, pickupLng = null;
+let pollTimer = null;
+
+function initMap() {
+  map = L.map('map').setView([33.5571, 35.3729], 14); // صيدا تقريباً
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  map.on('click', (e) => {
+    setPickup(e.latlng.lat, e.latlng.lng);
+  });
+}
+
+function setPickup(lat, lng) {
+  pickupLat = lat; pickupLng = lng;
+  if (pickupMarker) map.removeLayer(pickupMarker);
+  pickupMarker = L.marker([lat, lng], { title: 'موقعك' }).addTo(map);
+  map.setView([lat, lng], 15);
+}
+
+function tryAutoLocate(silent) {
+  if (!navigator.geolocation) { if (!silent) toast('المتصفح لا يدعم تحديد الموقع'); return; }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => setPickup(pos.coords.latitude, pos.coords.longitude),
+    () => { if (!silent) toast('تعذّر الوصول للموقع، حدّد نقطة على الخريطة يدوياً'); }
+  );
+}
+document.getElementById('locateBtn').onclick = () => tryAutoLocate(false);
+
+document.getElementById('requestBtn').onclick = async () => {
+  if (pickupLat == null) return toast('حدد موقعك أولاً على الخريطة');
+  try {
+    await api('/trips', {
+      method: 'POST',
+      body: {
+        pickupLat, pickupLng,
+        destinationText: document.getElementById('destInput').value
+      }
+    });
+    toast('تم إرسال الطلب، جاري البحث عن أقرب سائق متاح...');
+    document.getElementById('requestSection').style.display = 'none';
+    startPolling();
+  } catch (e) {
+    toast(e.message);
+  }
+};
+
+function renderTrip(trip) {
+  const section = document.getElementById('tripSection');
+  const box = document.getElementById('tripStatus');
+  if (!trip) {
+    section.style.display = 'none';
+    document.getElementById('requestSection').style.display = 'block';
+    return;
+  }
+  section.style.display = 'block';
+  document.getElementById('requestSection').style.display = 'none';
+
+  const statusLabel = {
+    requested: '<span class="badge badge-wait">جاري البحث عن سائق متاح...</span>',
+    accepted: '<span class="badge badge-ok">تم القبول — السائق في الطريق</span>'
+  }[trip.status] || '';
+
+  const driverLine = trip.status === 'accepted'
+    ? `<p><strong>السائق:</strong> ${trip.driverName}</p>`
+    : '';
+
+  box.innerHTML = `
+    <p>${statusLabel}</p>
+    ${driverLine}
+    <p><strong>الوجهة:</strong> ${trip.destinationText || '—'}</p>
+    <button class="btn-danger btn-sm" id="cancelTripBtn">إلغاء الرحلة</button>
+  `;
+  document.getElementById('cancelTripBtn').onclick = async () => {
+    try {
+      await api(`/trips/${trip.id}/cancel`, { method: 'POST' });
+      toast('تم إلغاء الرحلة');
+      renderTrip(null);
+    } catch (e) { toast(e.message); }
+  };
+}
+
+async function pollTrip() {
+  try {
+    const data = await api('/trips/mine');
+    if (data.notice) toast(data.notice);
+    renderTrip(data.trip);
+  } catch (e) { /* تجاهل أخطاء الشبكة المؤقتة */ }
+}
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollTrip, 4000);
+  pollTrip();
+}
+
+// ---------- سجل الرحلات والشكاوى ----------
+let complaintTripId = null;
+
+async function loadHistory() {
+  try {
+    const { trips } = await api('/trips/history');
+    const list = document.getElementById('historyList');
+    if (!trips.length) { list.innerHTML = '<p class="muted">لا توجد رحلات سابقة بعد.</p>'; return; }
+    list.innerHTML = trips.map(t => `
+      <div class="driver-item">
+        <div>
+          <div>${t.driverName} — ${tripStatusAr(t.status)}</div>
+          <div class="muted">${t.destinationText || '—'} ${t.price ? '· ' + t.price : ''}</div>
+        </div>
+        <button class="btn-sm btn-ghost" onclick="openComplaint(${t.id})">شكوى</button>
+      </div>
+    `).join('');
+  } catch (e) { /* تجاهل */ }
+}
+function tripStatusAr(s) {
+  return { requested: 'بانتظار السائق', accepted: 'جارية', completed: 'مكتملة', cancelled: 'ملغاة' }[s] || s;
+}
+document.getElementById('refreshHistory').onclick = loadHistory;
+
+function openComplaint(tripId) {
+  complaintTripId = tripId;
+  document.getElementById('complaintText').value = '';
+  document.getElementById('complaintOverlay').style.display = 'flex';
+}
+document.getElementById('cancelComplaintBtn').onclick = () => { document.getElementById('complaintOverlay').style.display = 'none'; };
+document.getElementById('sendComplaintBtn').onclick = async () => {
+  const description = document.getElementById('complaintText').value.trim();
+  if (!description) return toast('اكتب نص الشكوى أولاً');
+  try {
+    await api('/complaints', { method: 'POST', body: { tripId: complaintTripId, description } });
+    toast('تم استلام الشكوى');
+    document.getElementById('complaintOverlay').style.display = 'none';
+  } catch (e) { toast(e.message); }
+};
+
+// ---------- تسجيل الدخول / الحساب ----------
+document.getElementById('tabLogin').onclick = () => {
+  document.getElementById('tabLogin').classList.add('active');
+  document.getElementById('tabRegister').classList.remove('active');
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('registerForm').style.display = 'none';
+};
+document.getElementById('tabRegister').onclick = () => {
+  document.getElementById('tabRegister').classList.add('active');
+  document.getElementById('tabLogin').classList.remove('active');
+  document.getElementById('registerForm').style.display = 'block';
+  document.getElementById('loginForm').style.display = 'none';
+};
+
+document.getElementById('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    const data = await api('/auth/login-rider', { method: 'POST', body: { phone: fd.get('phone'), password: fd.get('password') } });
+    onLoggedIn(data);
+  } catch (err) { toast(err.message); }
+};
+
+document.getElementById('registerForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    const data = await api('/auth/register-rider', { method: 'POST', body: { name: fd.get('name'), phone: fd.get('phone'), password: fd.get('password') } });
+    onLoggedIn(data);
+  } catch (err) { toast(err.message); }
+};
+
+function onLoggedIn(data) {
+  setToken(data.token);
+  localStorage.setItem('waslni_role', 'rider');
+  localStorage.setItem('waslni_name', data.name);
+  showApp();
+}
+
+document.getElementById('logoutBtn').onclick = () => {
+  clearToken();
+  location.reload();
+};
+
+function showApp() {
+  document.getElementById('authBox').style.display = 'none';
+  document.getElementById('appBox').style.display = 'block';
+  if (!map) initMap();
+  startPolling();
+  tryAutoLocate(true); // اطلب الموقع تلقائياً فور الدخول، بدون رسالة خطأ إن فشل (يبقى الخيار اليدوي متاحاً)
+}
+
+// ---------- البدء ----------
+if (getToken() && localStorage.getItem('waslni_role') === 'rider') {
+  showApp();
+} else {
+  document.getElementById('authBox').style.display = 'block';
+}
+</script>
+</body>
+</html>

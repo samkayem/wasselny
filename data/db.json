@@ -1,0 +1,69 @@
+{
+  "riders": [
+    {
+      "id": 2,
+      "name": "سمير قيم",
+      "phone": "+96170790761",
+      "password": "$2a$10$dAAH1tc3ov0h83trLL5gR.3/nT9Zaay4D9TjIk7hoaunOyHdeQdda",
+      "createdAt": "2026-06-21T15:54:34.685Z"
+    }
+  ],
+  "drivers": [
+    {
+      "id": 1,
+      "name": "محمود قيم",
+      "phone": "+96170656818",
+      "password": "$2a$10$bGFgRVYf6e89RNSNC64dFOVOcbXtd9vFy8yjj8z1QrLWvcvis.OJe",
+      "nationalId": "9999",
+      "licenseNumber": "9999",
+      "verified": true,
+      "verifiedBy": "الإدارة",
+      "verifiedAt": "2026-06-21T15:49:41.021Z",
+      "idPhotoPath": null,
+      "licensePhotoPath": null,
+      "active": true,
+      "status": "offline",
+      "lat": 33.5625712703738,
+      "lng": 35.38544229223748,
+      "lastSeen": "2026-06-21T16:00:28.752Z",
+      "createdAt": "2026-06-21T15:49:17.501Z"
+    }
+  ],
+  "trips": [
+    {
+      "id": 3,
+      "riderId": 2,
+      "riderName": "سمير قيم",
+      "driverId": 1,
+      "driverName": "محمود قيم",
+      "pickupLat": 33.56685871114029,
+      "pickupLng": 35.379859364970116,
+      "destinationText": "",
+      "status": "completed",
+      "price": "3",
+      "triedDriverIds": [],
+      "cancelReason": null,
+      "riderNotified": true,
+      "createdAt": "2026-06-21T16:01:39.103Z",
+      "acceptedAt": "2026-06-21T16:03:35.775Z",
+      "completedAt": "2026-06-21T16:05:34.903Z"
+    }
+  ],
+  "complaints": [
+    {
+      "id": 4,
+      "tripId": 3,
+      "driverId": 1,
+      "driverName": "محمود قيم",
+      "riderId": 2,
+      "riderName": "سمير قيم",
+      "submittedBy": "rider",
+      "description": "يثرثر كثيرا اثناء القيادة",
+      "createdAt": "2026-06-21T16:11:43.643Z",
+      "resolved": true
+    }
+  ],
+  "meta": {
+    "nextId": 5
+  }
+}
