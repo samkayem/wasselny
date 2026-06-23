@@ -8,6 +8,33 @@ const { authMiddleware } = require('../utils');
 const router = express.Router();
 router.use(authMiddleware('admin'));
 
+// حساب سائق: كل رحلاته المكتملة، الإجمالي، والعمولة المطلوبة منه (20% من إجمالي مبلغ رحلاته)
+router.get('/drivers/:id/account', (req, res) => {
+  const id = Number(req.params.id);
+  const driver = db.get('drivers').find({ id }).value();
+  if (!driver) return res.status(404).json({ error: 'السائق غير موجود' });
+
+  const trips = db
+    .get('trips')
+    .filter((t) => t.driverId === id && t.status === 'completed')
+    .value()
+    .slice()
+    .reverse();
+
+  const totalRevenue = trips.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
+  const COMMISSION_RATE = 0.2; // 20% — حسب اتفاق المنصة مع السائقين
+  const commissionOwed = Math.round(totalRevenue * COMMISSION_RATE * 100) / 100;
+
+  res.json({
+    driver: { id: driver.id, name: driver.name, phone: driver.phone },
+    trips,
+    totalTrips: trips.length,
+    totalRevenue,
+    commissionRate: COMMISSION_RATE,
+    commissionOwed
+  });
+});
+
 // قائمة السائقين — تُظهر حالة المراجعة بدون كشف الصور الحساسة في الواجهة العامة
 router.get('/drivers', (req, res) => {
   const drivers = db
