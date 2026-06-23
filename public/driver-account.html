@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wasselny — حساب السائق</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  main { max-width: 720px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">Wasselny</span>
+    <span class="tag">حساب السائق</span>
+  </div>
+  <main>
+    <a href="admin.html"><button class="btn-ghost">→ رجوع للوحة الإدارة</button></a>
+
+    <div class="card" id="driverInfo" style="margin-top:14px">
+      <p class="muted">جارٍ التحميل...</p>
+    </div>
+
+    <div class="stat-grid" id="statsGrid"></div>
+
+    <div class="card" id="tripsCard" style="display:none">
+      <h2>الرحلات المكتملة</h2>
+      <table id="tripsTable">
+        <tr><th>التاريخ</th><th>الراكب</th><th>السعر</th></tr>
+      </table>
+    </div>
+  </main>
+
+<script src="js/api.js"></script>
+<script>
+requireLogin('admin');
+
+const driverId = new URLSearchParams(location.search).get('id');
+
+async function load() {
+  if (!driverId) { toast('لم يتم تحديد سائق'); return; }
+  try {
+    const data = await api(`/admin/drivers/${driverId}/account`);
+
+    document.getElementById('driverInfo').innerHTML = `
+      <h2 style="margin-bottom:4px">${data.driver.name}</h2>
+      <p class="muted">${data.driver.phone}</p>
+    `;
+
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat"><div class="num">${data.totalTrips}</div><div class="lbl">رحلات مكتملة</div></div>
+      <div class="stat"><div class="num">${data.totalRevenue}</div><div class="lbl">إجمالي مبلغ الرحلات</div></div>
+      <div class="stat"><div class="num">${data.commissionOwed}</div><div class="lbl">المطلوب من السائق (20%)</div></div>
+    `;
+
+    const tripsCard = document.getElementById('tripsCard');
+    const table = document.getElementById('tripsTable');
+    tripsCard.style.display = 'block';
+
+    if (!data.trips.length) {
+      table.insertAdjacentHTML('beforeend', '<tr><td colspan="3" class="muted">لا توجد رحلات مكتملة بعد.</td></tr>');
+    } else {
+      data.trips.forEach((t) => {
+        const date = new Date(t.completedAt || t.createdAt).toLocaleDateString('ar-LB');
+        table.insertAdjacentHTML(
+          'beforeend',
+          `<tr><td>${date}</td><td>${t.riderName}</td><td>${t.price ?? '—'}</td></tr>`
+        );
+      });
+    }
+  } catch (e) {
+    toast(e.message);
+  }
+}
+load();
+</script>
+</body>
+</html>
