@@ -81,6 +81,36 @@ router.post('/drivers/:id/toggle-active', (req, res) => {
   res.json({ ok: true, active: !driver.active });
 });
 
+// حذف نهائي لسجل سائق — لا يمكن التراجع عنه. يُستخدم لتنظيف حسابات تجريبية أو مكررة.
+router.delete('/drivers/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const driver = db.get('drivers').find({ id }).value();
+  if (!driver) return res.status(404).json({ error: 'السائق غير موجود' });
+
+  // حذف أي صور متبقية لم تُحذف بعد (احتياطاً، نادراً ما يحدث)
+  [driver.idPhotoPath, driver.licensePhotoPath].forEach((p) => {
+    if (p && fs.existsSync(p)) {
+      try {
+        fs.unlinkSync(p);
+      } catch (e) {
+        /* تجاهل أخطاء الحذف غير الحرجة */
+      }
+    }
+  });
+
+  // إلغاء أي رحلة نشطة مرتبطة بهذا السائق، حتى لا يبقى الراكب بانتظار سائق محذوف
+  const activeTrips = db
+    .get('trips')
+    .filter((t) => t.driverId === id && ['requested', 'accepted'].includes(t.status))
+    .value();
+  activeTrips.forEach((t) => {
+    db.get('trips').find({ id: t.id }).assign({ status: 'cancelled', cancelReason: 'driver_deleted' }).write();
+  });
+
+  db.get('drivers').remove({ id }).write();
+  res.json({ ok: true });
+});
+
 // كل الرحلات (لأغراض المراجعة والتقارير)
 router.get('/trips', (req, res) => {
   const trips = db.get('trips').value().slice().reverse();
