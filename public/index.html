@@ -41,6 +41,22 @@
     margin: 0;
     white-space: nowrap;
   }
+  .stats-row { display: flex; gap: 10px; margin-bottom: 18px; }
+  .stat-box {
+    flex: 1;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .stat-box .stat-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--teal);
+  }
+  .stat-box .stat-lbl { font-size: 11px; color: #6b6452; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -49,6 +65,17 @@
     <span class="tag">صيدا · نسخة تجريبية v1</span>
   </div>
   <main>
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-num" id="ridersCount">—</div>
+        <div class="stat-lbl">راكب مسجّل</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" id="driversCount">—</div>
+        <div class="stat-lbl">سائق مسجّل</div>
+      </div>
+    </div>
+
     <h1>توصيلة أسرع داخل صيدا</h1>
     <p class="muted">اختر نوع حسابك للدخول أو التسجيل.</p>
 
@@ -76,5 +103,15 @@
       <a href="admin.html"><button class="btn-ghost">دخول الإدارة</button></a>
     </div>
   </main>
+
+<script>
+  fetch('/api/stats/public')
+    .then((r) => r.json())
+    .then((data) => {
+      document.getElementById('ridersCount').textContent = data.ridersCount;
+      document.getElementById('driversCount').textContent = data.driversCount;
+    })
+    .catch(() => {});
+</script>
 </body>
 </html>
