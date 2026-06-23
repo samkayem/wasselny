@@ -133,6 +133,7 @@ async function loadDrivers() {
           <button class="btn-sm ${d.active ? 'btn-danger' : 'btn-secondary'}" onclick="toggleActive(${d.id})">
             ${d.active ? 'تعطيل الحساب' : 'إعادة تفعيل'}
           </button>
+          <button class="btn-sm btn-danger" onclick="deleteDriver(${d.id}, '${d.name.replace(/'/g, "\\'")}')">حذف نهائي</button>
         </div>
       </div>
     `).join('');
@@ -170,6 +171,15 @@ async function toggleActive(id) {
   try {
     await api(`/admin/drivers/${id}/toggle-active`, { method: 'POST' });
     loadDrivers();
+  } catch (e) { toast(e.message); }
+}
+
+async function deleteDriver(id, name) {
+  if (!confirm(`هل أنت متأكد من حذف "${name}" نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+  try {
+    await api(`/admin/drivers/${id}`, { method: 'DELETE' });
+    toast('تم الحذف نهائياً');
+    loadDrivers(); loadStats();
   } catch (e) { toast(e.message); }
 }
 
