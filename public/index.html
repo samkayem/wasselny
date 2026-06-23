@@ -5,6 +5,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wasselny</title>
 <link rel="stylesheet" href="css/style.css">
+<style>
+  /* تصميم مضغوط خاص بهذه الصفحة فقط، ليظهر كاملاً على شاشة الهاتف بدون أي تمرير */
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; }
+  .topbar { padding: 12px 18px; flex: 0 0 auto; }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 14px 16px;
+    max-width: 480px;
+  }
+  main h1 { font-size: 19px; margin-bottom: 4px; }
+  main > p.muted { margin: 0 0 14px; font-size: 13px; }
+  .option-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .option-card .info h2 { font-size: 15px; margin: 0 0 2px; }
+  .option-card .info p { font-size: 12px; margin: 0; line-height: 1.35; }
+  .option-card a { flex: 0 0 auto; }
+  .option-card button {
+    width: auto;
+    padding: 9px 16px;
+    font-size: 13px;
+    margin: 0;
+    white-space: nowrap;
+  }
+</style>
 </head>
 <body>
   <div class="topbar">
@@ -15,21 +52,27 @@
     <h1>توصيلة أسرع داخل صيدا</h1>
     <p class="muted">اختر نوع حسابك للدخول أو التسجيل.</p>
 
-    <div class="card">
-      <h2>راكب</h2>
-      <p class="muted">اطلب رحلة وشاهد أقرب السائقين المتوفرين.</p>
+    <div class="option-card">
+      <div class="info">
+        <h2>راكب</h2>
+        <p>اطلب رحلة وشاهد أقرب السائقين.</p>
+      </div>
       <a href="rider.html"><button class="btn-primary">دخول كراكب</button></a>
     </div>
 
-    <div class="card">
-      <h2>سائق</h2>
-      <p class="muted">سجّل حسابك واستقبل طلبات الرحلات.</p>
+    <div class="option-card">
+      <div class="info">
+        <h2>سائق</h2>
+        <p>سجّل واستقبل طلبات الرحلات.</p>
+      </div>
       <a href="driver.html"><button class="btn-secondary">دخول كسائق</button></a>
     </div>
 
-    <div class="card">
-      <h2>الإدارة</h2>
-      <p class="muted">للفريق المسؤول عن تشغيل التطبيق فقط.</p>
+    <div class="option-card">
+      <div class="info">
+        <h2>الإدارة</h2>
+        <p>للفريق المسؤول عن التطبيق فقط.</p>
+      </div>
       <a href="admin.html"><button class="btn-ghost">دخول الإدارة</button></a>
     </div>
   </main>
