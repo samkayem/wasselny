@@ -116,7 +116,7 @@ async function loadDrivers() {
       <div class="card">
         <div class="row" style="align-items:flex-start">
           <div>
-            <strong>${d.name}</strong> — ${d.phone}<br>
+            <a href="driver-account.html?id=${d.id}" style="color:var(--teal-dark); text-decoration:underline"><strong>${d.name}</strong></a> — ${d.phone}<br>
             <span class="muted">هوية: ${d.nationalId} · رخصة: ${d.licenseNumber}</span><br>
             ${d.verified
               ? `<span class="badge badge-ok">موثّق بواسطة ${d.verifiedBy}</span>`
