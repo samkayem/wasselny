@@ -4,12 +4,14 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-// تأكد من وجود مجلدي data وuploads دائماً عند بدء التشغيل،
+// تأكد من وجود مجلدي data وuploads دائماً عند بدء التشغيل (قبل تحميل db.js الذي يعتمد عليهما)،
 // بدلاً من الاعتماد على ملفات .gitkeep قد لا تصل عند الرفع لـ GitHub أو غيره
 ['data', 'uploads'].forEach((dir) => {
   const full = path.join(__dirname, dir);
   if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true });
 });
+
+const { db } = require('./db');
 
 const app = express();
 app.use(cors());
@@ -26,6 +28,14 @@ app.use('/api/complaints', require('./routes/complaints'));
 app.use('/api/admin', require('./routes/admin'));
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+
+// إحصائيات عامة بدون تسجيل دخول — لعدّادي الراكبين والسائقين في الصفحة الرئيسية
+app.get('/api/stats/public', (req, res) => {
+  res.json({
+    ridersCount: db.get('riders').value().length,
+    driversCount: db.get('drivers').value().length
+  });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
