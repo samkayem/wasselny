@@ -1,9 +1,22 @@
 // routes/drivers.js
 const express = require('express');
 const { db } = require('../db');
-const { distanceKm, authMiddleware } = require('../utils');
+const { distanceKm, authMiddleware, VAPID_PUBLIC_KEY } = require('../utils');
 
 const router = express.Router();
+
+// مفتاح VAPID العام — يحتاجه المتصفح للاشتراك بإشعارات الدفع (لا حاجة لتسجيل دخول لجلبه)
+router.get('/push-public-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+// السائق يرسل اشتراك إشعارات الدفع الخاص بمتصفحه ليُخزَّن ويُستخدم لاحقاً عند وصول طلب
+router.post('/push-subscribe', authMiddleware('driver'), (req, res) => {
+  const { subscription } = req.body;
+  if (!subscription) return res.status(400).json({ error: 'بيانات الاشتراك مطلوبة' });
+  db.get('drivers').find({ id: req.user.id }).assign({ pushSubscription: subscription }).write();
+  res.json({ ok: true });
+});
 
 // السائق يحدّث حالته (متوفر/غير متوفر) وموقعه الحالي
 // يُستدعى فقط أثناء فترة "متوفر وبانتظار طلب" — لا حاجة له بعد قبول رحلة

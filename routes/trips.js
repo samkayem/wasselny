@@ -1,7 +1,7 @@
 // routes/trips.js
 const express = require('express');
 const { db, nextId } = require('../db');
-const { authMiddleware, distanceKm } = require('../utils');
+const { authMiddleware, distanceKm, sendPushToDriver } = require('../utils');
 
 const router = express.Router();
 
@@ -80,6 +80,13 @@ router.post('/', authMiddleware('rider'), (req, res) => {
     completedAt: null
   };
   db.get('trips').push(trip).write();
+
+  // إشعار دفع للسائق — لا ننتظر نتيجته، فهو لا يجب أن يؤخر استجابة الراكب
+  sendPushToDriver(nearest, {
+    title: '🔔 طلب رحلة جديد',
+    body: 'لديك طلب توصيلة جديد على Wasselny',
+    url: '/driver.html'
+  });
 
   // لا نُرجع اسم السائق للراكب أثناء البحث — فقط تأكيد أن الطلب قيد المعالجة
   res.json({ trip: { id: trip.id, status: trip.status } });
@@ -169,6 +176,11 @@ router.post('/:id/reject', authMiddleware('driver'), (req, res) => {
         riderNotified: true
       })
       .write();
+    sendPushToDriver(next, {
+      title: '🔔 طلب رحلة جديد',
+      body: 'لديك طلب توصيلة جديد على Wasselny',
+      url: '/driver.html'
+    });
   } else {
     tripRef
       .assign({

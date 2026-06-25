@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wasselny — سائق</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0e5e52">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
@@ -58,6 +61,12 @@
         <p id="statusLabel"><span class="badge badge-off">غير متوفر</span></p>
         <button class="btn-secondary" id="toggleBtn">تفعيل الاستعداد لاستقبال الطلبات</button>
         <p class="muted" id="wakeLockNote" style="display:none">💡 أبقِ الشاشة مفتوحة والتبويب في المقدمة أثناء الانتظار لاستقبال الطلبات.</p>
+      </div>
+
+      <div class="card" id="notifCard">
+        <h2>الإشعارات الخلفية</h2>
+        <p class="muted" id="notifHint">فعّلها لتصلك تنبيهات الطلبات حتى لو كانت الشاشة مقفلة.</p>
+        <button class="btn-secondary" id="enableNotifBtn">تفعيل الإشعارات الخلفية</button>
       </div>
 
       <div id="manualMapCard" class="card" style="display:none">
@@ -132,6 +141,66 @@ async function requestWakeLock() {
 }
 function releaseWakeLock() {
   if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+// ---------- إشعارات الدفع الخلفية (Web Push) ----------
+function isIos() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+function isStandalone() {
+  return ('standalone' in navigator && navigator.standalone) ||
+    window.matchMedia('(display-mode: standalone)').matches;
+}
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const arr = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) arr[i] = rawData.charCodeAt(i);
+  return arr;
+}
+
+async function subscribeToPush(silent) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!silent) toast('هذا المتصفح لا يدعم الإشعارات الخلفية');
+    return;
+  }
+  if (isIos() && !isStandalone()) {
+    if (!silent) {
+      toast('على آيفون: أضف الموقع للشاشة الرئيسية أولاً (زر المشاركة ⬆️ ← Add to Home Screen)، ثم افتحه من الأيقونة وفعّل التنبيهات من هناك');
+    }
+    return;
+  }
+  try {
+    const permission = silent ? Notification.permission : await Notification.requestPermission();
+    if (permission !== 'granted') {
+      if (!silent) toast('لم يُسمح بالإشعارات — لن تصلك تنبيهات عند إغلاق الشاشة');
+      return;
+    }
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    const { publicKey } = await api('/drivers/push-public-key');
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+    }
+    await api('/drivers/push-subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+    document.getElementById('notifHint').textContent = 'الإشعارات الخلفية مفعّلة ✓';
+    if (!silent) toast('تم تفعيل الإشعارات الخلفية بنجاح');
+  } catch (e) {
+    if (!silent) toast('تعذّر تفعيل الإشعارات: ' + e.message);
+  }
+}
+document.getElementById('enableNotifBtn').onclick = () => subscribeToPush(false);
+
+function showIosHintIfNeeded() {
+  if (isIos() && !isStandalone()) {
+    document.getElementById('notifHint').textContent =
+      'على آيفون: أضف الموقع للشاشة الرئيسية أولاً من زر المشاركة ⬆️ ثم افتحه من الأيقونة لتفعيل الإشعارات.';
+  }
 }
 
 // ---------- تبديل حالة الاستعداد ----------
@@ -332,6 +401,10 @@ function showApp() {
   document.getElementById('appBox').style.display = 'block';
   startPolling();
   prefetchLocation(); // اطلب إذن الموقع فوراً عند الدخول لتسريع تفعيل الاستعداد لاحقاً
+  showIosHintIfNeeded();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    subscribeToPush(true); // إعادة الاشتراك بصمت إن كان الإذن ممنوحاً مسبقاً، بدون أي طلب جديد
+  }
 }
 
 // ---------- البدء ----------

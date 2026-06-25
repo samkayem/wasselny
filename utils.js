@@ -43,3 +43,30 @@ function authMiddleware(requiredRole) {
 }
 
 module.exports = { distanceKm, signToken, authMiddleware, JWT_SECRET };
+
+// ---------- إشعارات الدفع (Web Push) ----------
+const webpush = require('web-push');
+
+// مفاتيح VAPID لإرسال إشعارات الدفع — يمكن توليد زوج جديد عبر:
+// node -e "console.log(require('web-push').generateVAPIDKeys())"
+// القيم أدناه افتراضية تعمل فوراً بدون أي إعداد إضافي؛ يمكن تغييرها لاحقاً عبر متغيرات بيئة عند الحاجة.
+const VAPID_PUBLIC_KEY =
+  process.env.VAPID_PUBLIC_KEY ||
+  'BBg_Q5MHRtbiSHlcmosjlFClPdsnTUoVBfz9_OOIEY50s0am89GTIusX3nIKtMyz4tzPK1MXqgC-4xgZg2_Otrs';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'iqtchu8ia2lqCMNz1Whqr2rZRHOfEiKqmod3kjRRp1o';
+
+webpush.setVapidDetails('mailto:admin@wasselny.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+module.exports.webpush = webpush;
+module.exports.VAPID_PUBLIC_KEY = VAPID_PUBLIC_KEY;
+
+// يرسل إشعار دفع لسائق إن كان مشترَكاً، ويتجاهل الخطأ بصمت إن لم يكن (لا يوجد اشتراك، أو انتهت صلاحيته)
+async function sendPushToDriver(driver, payload) {
+  if (!driver.pushSubscription) return;
+  try {
+    await webpush.sendNotification(driver.pushSubscription, JSON.stringify(payload));
+  } catch (e) {
+    // اشتراك منتهي الصلاحية أو خطأ شبكة — لا نوقف تنفيذ الطلب الأساسي بسبب هذا
+  }
+}
+module.exports.sendPushToDriver = sendPushToDriver;
