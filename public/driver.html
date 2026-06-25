@@ -161,14 +161,14 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function subscribeToPush(silent) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    if (!silent) toast('هذا المتصفح لا يدعم الإشعارات الخلفية');
-    return;
-  }
   if (isIos() && !isStandalone()) {
     if (!silent) {
       toast('على آيفون: أضف الموقع للشاشة الرئيسية أولاً (زر المشاركة ⬆️ ← Add to Home Screen)، ثم افتحه من الأيقونة وفعّل التنبيهات من هناك');
     }
+    return;
+  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!silent) toast('هذا المتصفح أو إصدار النظام لا يدعم الإشعارات الخلفية');
     return;
   }
   try {
