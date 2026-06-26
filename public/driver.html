@@ -300,9 +300,16 @@ function showIncoming(trip) {
   document.getElementById('incomingInfo').innerHTML =
     `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}`;
 }
+function clearAppBadgeIfSupported() {
+  if ('clearAppBadge' in navigator) {
+    navigator.clearAppBadge().catch(() => {});
+  }
+}
+
 function hideIncoming() {
   currentIncoming = null;
   document.getElementById('incomingCard').style.display = 'none';
+  clearAppBadgeIfSupported();
 }
 
 document.getElementById('acceptBtn').onclick = async () => {
@@ -402,6 +409,7 @@ function showApp() {
   startPolling();
   prefetchLocation(); // اطلب إذن الموقع فوراً عند الدخول لتسريع تفعيل الاستعداد لاحقاً
   showIosHintIfNeeded();
+  clearAppBadgeIfSupported(); // تصفير أي عداد قديم متبقٍ من جلسة سابقة
   if ('Notification' in window && Notification.permission === 'granted') {
     subscribeToPush(true); // إعادة الاشتراك بصمت إن كان الإذن ممنوحاً مسبقاً، بدون أي طلب جديد
   }
