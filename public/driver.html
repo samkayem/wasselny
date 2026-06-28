@@ -306,7 +306,7 @@ async function pollLoop() {
       hideAllTripCards();
       document.getElementById('incomingCard').style.display = 'block';
       document.getElementById('incomingInfo').innerHTML =
-        `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}`;
+        `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}<br><strong>عدد الركاب:</strong> ${trip.passengerCount || 1}`;
     } else if (trip.status === 'quoted') {
       hideAllTripCards();
       document.getElementById('waitingQuoteCard').style.display = 'block';
@@ -318,7 +318,7 @@ async function pollLoop() {
       hideAllTripCards();
       document.getElementById('activeTripCard').style.display = 'block';
       document.getElementById('activeTripInfo').innerHTML =
-        `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}<br><strong>السعر المتفق عليه:</strong> ${trip.price}`;
+        `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}<br><strong>عدد الركاب:</strong> ${trip.passengerCount || 1}<br><strong>السعر المتفق عليه:</strong> ${trip.price}`;
       document.getElementById('priceInput').value = trip.price ?? '';
       clearAppBadgeIfSupported();
     }

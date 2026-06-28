@@ -81,9 +81,13 @@ function cascadeToNextDriver(tripRef, currentDriverId, noMoreCancelReason) {
 // الراكب يطلب رحلة — لا يختار سائقاً، النظام يختار أقرب سائق متوفر تلقائياً
 // هوية السائق لا تُكشف للراكب إلا بعد أن يعرض السائق سعراً (status === 'quoted' فأعلى)
 router.post('/', authMiddleware('rider'), (req, res) => {
-  const { pickupLat, pickupLng, destinationText } = req.body;
+  const { pickupLat, pickupLng, destinationText, passengerCount } = req.body;
   if (pickupLat == null || pickupLng == null) {
     return res.status(400).json({ error: 'بيانات الطلب غير مكتملة' });
+  }
+  const passengers = Number(passengerCount) || 1;
+  if (passengers < 1 || passengers > 6) {
+    return res.status(400).json({ error: 'عدد الركاب يجب أن يكون بين 1 و6' });
   }
 
   const activeForRider = db
@@ -108,6 +112,7 @@ router.post('/', authMiddleware('rider'), (req, res) => {
     pickupLat,
     pickupLng,
     destinationText: destinationText || '',
+    passengerCount: passengers,
     status: 'requested', // requested | quoted | accepted | completed | cancelled
     proposedPrice: null, // السعر الذي يعرضه السائق، قبل موافقة الراكب
     price: null, // السعر النهائي المتفق عليه (يُقفل عند موافقة الراكب على العرض)

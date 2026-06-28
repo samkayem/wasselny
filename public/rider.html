@@ -55,6 +55,8 @@
         <h2>طلب رحلة</h2>
         <label>الوجهة (وصف نصي)</label>
         <input id="destInput" placeholder="مثال: ساحة النجمة، صيدا">
+        <label>عدد الركاب</label>
+        <input id="passengerCountInput" type="number" min="1" max="6" value="1">
         <button class="btn-primary" id="requestBtn" style="margin-top:14px">طلب رحلة</button>
         <p class="muted" style="margin-top:8px">سيختار النظام أقرب سائق متوفر تلقائياً ويرسل له طلبك.</p>
       </div>
@@ -128,7 +130,8 @@ document.getElementById('requestBtn').onclick = async () => {
       method: 'POST',
       body: {
         pickupLat, pickupLng,
-        destinationText: document.getElementById('destInput').value
+        destinationText: document.getElementById('destInput').value,
+        passengerCount: document.getElementById('passengerCountInput').value
       }
     });
     toast('تم إرسال الطلب، جاري البحث عن أقرب سائق متاح...');
@@ -178,6 +181,7 @@ function renderTrip(trip) {
     ${driverLine}
     ${priceLine}
     <p><strong>الوجهة:</strong> ${trip.destinationText || '—'}</p>
+    <p><strong>عدد الركاب:</strong> ${trip.passengerCount || 1}</p>
     ${actionButtons}
   `;
 

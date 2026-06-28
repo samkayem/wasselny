@@ -192,11 +192,12 @@ async function loadTrips() {
     const pane = document.getElementById('tripsPane');
     if (!trips.length) { pane.innerHTML = '<p class="muted">لا توجد رحلات بعد.</p>'; return; }
     pane.innerHTML = `<div class="card"><table>
-      <tr><th>الراكب</th><th>السائق</th><th>الحالة</th><th>السعر</th><th></th></tr>
+      <tr><th>الراكب</th><th>السائق</th><th>الركاب</th><th>الحالة</th><th>السعر</th><th></th></tr>
       ${trips.map(t => `
         <tr>
           <td>${t.riderName}</td>
           <td>${t.driverName}</td>
+          <td>${t.passengerCount || 1}</td>
           <td>${tripStatusAr(t.status)}</td>
           <td>${t.price ?? '—'}</td>
           <td><button class="btn-sm btn-ghost" onclick="editPrice(${t.id}, '${t.price ?? ''}')">تعديل السعر</button></td>
