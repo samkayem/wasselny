@@ -206,7 +206,7 @@ async function loadTrips() {
   } catch (e) { toast(e.message); }
 }
 function tripStatusAr(s) {
-  return { requested: 'بانتظار السائق', accepted: 'جارية', completed: 'مكتملة', cancelled: 'ملغاة' }[s] || s;
+  return { requested: 'بانتظار السائق', quoted: 'عرض سعر معلّق', accepted: 'جارية', completed: 'مكتملة', cancelled: 'ملغاة' }[s] || s;
 }
 async function editPrice(id, current) {
   const price = prompt('السعر الجديد:', current);

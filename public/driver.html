@@ -78,16 +78,24 @@
       <div id="incomingCard" class="card" style="display:none">
         <h2>🔔 طلب رحلة جديد</h2>
         <p id="incomingInfo"></p>
-        <div class="row">
-          <button class="btn-primary" id="acceptBtn">قبول</button>
+        <label>سعرك المعروض للرحلة</label>
+        <input id="quotePriceInput" type="number" min="0" step="0.5" placeholder="مثال: 3">
+        <div class="row" style="margin-top:8px">
+          <button class="btn-primary" id="acceptBtn">تحديد السعر والمتابعة</button>
           <button class="btn-danger" id="rejectBtn">رفض</button>
         </div>
       </div>
 
+      <div id="waitingQuoteCard" class="card" style="display:none">
+        <h2>⏳ بانتظار رد الراكب</h2>
+        <p id="waitingQuoteInfo"></p>
+      </div>
+
       <div id="activeTripCard" class="card" style="display:none">
-        <h2>الرحلة الحالية</h2>
+        <h2>✅ الرحلة مؤكدة</h2>
         <p id="activeTripInfo"></p>
-        <label>السعر المتفق عليه (بالدولار أو ليرة، حسب اتفاقكما)</label>
+        <button class="btn-secondary" id="navigateBtn">🧭 متابعة الرحلة (فتح المسار)</button>
+        <label style="margin-top:14px; display:block">السعر النهائي (يمكن تعديله إذا اختلف الواقع)</label>
         <input id="priceInput" type="number" min="0" step="0.5" placeholder="مثال: 3">
         <button class="btn-primary" id="completeBtn">إنهاء الرحلة وتسجيل السعر</button>
       </div>
@@ -266,24 +274,53 @@ async function setAvailability(available, lat, lng) {
   } catch (e) { toast(e.message); }
 }
 
-// ---------- فحص دوري للطلبات الواردة والرحلة الحالية ----------
+// ---------- فحص دوري لحالة الطلب الحالي (requested ← quoted ← accepted) ----------
+let currentTrip = null;
+
+function clearAppBadgeIfSupported() {
+  if ('clearAppBadge' in navigator) {
+    navigator.clearAppBadge().catch(() => {});
+  }
+}
+
+function hideAllTripCards() {
+  document.getElementById('incomingCard').style.display = 'none';
+  document.getElementById('waitingQuoteCard').style.display = 'none';
+  document.getElementById('activeTripCard').style.display = 'none';
+}
+
 async function pollLoop() {
   try {
-    const { trip: activeTrip } = await api('/trips/mine');
-    if (activeTrip && activeTrip.status === 'accepted') {
-      showActiveTrip(activeTrip);
-      hideIncoming();
+    const { trip } = await api('/trips/mine');
+    currentTrip = trip;
+
+    if (!trip) {
+      lastIncomingId = null;
+      hideAllTripCards();
+      clearAppBadgeIfSupported();
       return;
     }
-    hideActiveTrip();
 
-    const { trip } = await api('/trips/incoming');
-    if (trip) {
+    if (trip.status === 'requested') {
       if (trip.id !== lastIncomingId) { beep(); lastIncomingId = trip.id; }
-      showIncoming(trip);
-    } else {
+      hideAllTripCards();
+      document.getElementById('incomingCard').style.display = 'block';
+      document.getElementById('incomingInfo').innerHTML =
+        `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}`;
+    } else if (trip.status === 'quoted') {
+      hideAllTripCards();
+      document.getElementById('waitingQuoteCard').style.display = 'block';
+      document.getElementById('waitingQuoteInfo').innerHTML =
+        `السعر المعروض: <strong>${trip.proposedPrice}</strong><br>بانتظار موافقة الراكب...`;
+      clearAppBadgeIfSupported();
+    } else if (trip.status === 'accepted') {
       lastIncomingId = null;
-      hideIncoming();
+      hideAllTripCards();
+      document.getElementById('activeTripCard').style.display = 'block';
+      document.getElementById('activeTripInfo').innerHTML =
+        `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}<br><strong>السعر المتفق عليه:</strong> ${trip.price}`;
+      document.getElementById('priceInput').value = trip.price ?? '';
+      clearAppBadgeIfSupported();
     }
   } catch (e) { /* تجاهل أخطاء الشبكة المؤقتة */ }
 }
@@ -293,61 +330,38 @@ function startPolling() {
   pollLoop();
 }
 
-let currentIncoming = null;
-function showIncoming(trip) {
-  currentIncoming = trip;
-  document.getElementById('incomingCard').style.display = 'block';
-  document.getElementById('incomingInfo').innerHTML =
-    `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}`;
-}
-function clearAppBadgeIfSupported() {
-  if ('clearAppBadge' in navigator) {
-    navigator.clearAppBadge().catch(() => {});
-  }
-}
-
-function hideIncoming() {
-  currentIncoming = null;
-  document.getElementById('incomingCard').style.display = 'none';
-  clearAppBadgeIfSupported();
-}
-
 document.getElementById('acceptBtn').onclick = async () => {
-  if (!currentIncoming) return;
+  if (!currentTrip) return;
+  const price = document.getElementById('quotePriceInput').value;
+  if (!price || Number(price) <= 0) return toast('أدخل سعراً صحيحاً أولاً');
   try {
-    await api(`/trips/${currentIncoming.id}/accept`, { method: 'POST' });
-    toast('تم قبول الطلب');
-    hideIncoming();
+    await api(`/trips/${currentTrip.id}/quote`, { method: 'POST', body: { price } });
+    toast('تم إرسال السعر، بانتظار موافقة الراكب');
     pollLoop();
   } catch (e) { toast(e.message); }
 };
 document.getElementById('rejectBtn').onclick = async () => {
-  if (!currentIncoming) return;
+  if (!currentTrip) return;
   try {
-    await api(`/trips/${currentIncoming.id}/reject`, { method: 'POST' });
-    hideIncoming();
+    await api(`/trips/${currentTrip.id}/reject`, { method: 'POST' });
+    hideAllTripCards();
   } catch (e) { toast(e.message); }
 };
 
-let currentActiveTrip = null;
-function showActiveTrip(trip) {
-  currentActiveTrip = trip;
-  document.getElementById('activeTripCard').style.display = 'block';
-  document.getElementById('activeTripInfo').innerHTML =
-    `<strong>الراكب:</strong> ${trip.riderName}<br><strong>الوجهة:</strong> ${trip.destinationText || '—'}`;
-}
-function hideActiveTrip() {
-  currentActiveTrip = null;
-  document.getElementById('activeTripCard').style.display = 'none';
-}
+document.getElementById('navigateBtn').onclick = () => {
+  if (!currentTrip) return;
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${currentTrip.pickupLat},${currentTrip.pickupLng}`;
+  window.open(url, '_blank');
+};
 
 document.getElementById('completeBtn').onclick = async () => {
-  if (!currentActiveTrip) return;
+  if (!currentTrip) return;
   const price = document.getElementById('priceInput').value;
   try {
-    await api(`/trips/${currentActiveTrip.id}/complete`, { method: 'POST', body: { price } });
+    await api(`/trips/${currentTrip.id}/complete`, { method: 'POST', body: { price } });
     toast('تم إنهاء الرحلة وتسجيل السعر');
-    hideActiveTrip();
+    hideAllTripCards();
+    currentTrip = null;
     currentAvailable = false;
     document.getElementById('statusLabel').innerHTML = '<span class="badge badge-off">غير متوفر</span>';
     document.getElementById('toggleBtn').textContent = 'تفعيل الاستعداد لاستقبال الطلبات';

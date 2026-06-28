@@ -14,7 +14,9 @@ db.defaults({
   drivers: [],
   trips: [],
   complaints: [],
-  meta: { nextId: 1 }
+  meta: { nextId: 1 },
+  // إعدادات التسعير — تُعدَّل من لوحة الإدارة، لا حاجة لتعديل الكود عند تغيّر الأسعار
+  settings: { currency: 'USD', baseFare: 1, perKmRate: 0.4 }
 }).write();
 
 // مولّد أرقام تسلسلية بسيط للمعرّفات (id)

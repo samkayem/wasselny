@@ -152,26 +152,59 @@ function renderTrip(trip) {
 
   const statusLabel = {
     requested: '<span class="badge badge-wait">جاري البحث عن سائق متاح...</span>',
-    accepted: '<span class="badge badge-ok">تم القبول — السائق في الطريق</span>'
+    quoted: '<span class="badge badge-wait">السائق عرض سعراً — بانتظار موافقتك</span>',
+    accepted: '<span class="badge badge-ok">تم تأكيد السعر — السائق في الطريق</span>'
   }[trip.status] || '';
 
-  const driverLine = trip.status === 'accepted'
+  const driverLine = ['quoted', 'accepted'].includes(trip.status)
     ? `<p><strong>السائق:</strong> ${trip.driverName}</p>`
     : '';
+
+  let actionButtons = `<button class="btn-danger btn-sm" id="cancelTripBtn">إلغاء الرحلة</button>`;
+  let priceLine = '';
+
+  if (trip.status === 'quoted') {
+    priceLine = `<p><strong>السعر المعروض:</strong> ${trip.proposedPrice}</p>`;
+    actionButtons = `
+      <button class="btn-primary btn-sm" id="acceptQuoteBtn">قبول السعر</button>
+      <button class="btn-danger btn-sm" id="rejectQuoteBtn">رفض السعر</button>
+    `;
+  } else if (trip.status === 'accepted') {
+    priceLine = `<p><strong>السعر المتفق عليه:</strong> ${trip.price}</p>`;
+  }
 
   box.innerHTML = `
     <p>${statusLabel}</p>
     ${driverLine}
+    ${priceLine}
     <p><strong>الوجهة:</strong> ${trip.destinationText || '—'}</p>
-    <button class="btn-danger btn-sm" id="cancelTripBtn">إلغاء الرحلة</button>
+    ${actionButtons}
   `;
-  document.getElementById('cancelTripBtn').onclick = async () => {
-    try {
-      await api(`/trips/${trip.id}/cancel`, { method: 'POST' });
-      toast('تم إلغاء الرحلة');
-      renderTrip(null);
-    } catch (e) { toast(e.message); }
-  };
+
+  if (trip.status === 'quoted') {
+    document.getElementById('acceptQuoteBtn').onclick = async () => {
+      try {
+        await api(`/trips/${trip.id}/accept-quote`, { method: 'POST' });
+        toast('تم تأكيد السعر، السائق في الطريق');
+        pollTrip();
+      } catch (e) { toast(e.message); }
+    };
+    document.getElementById('rejectQuoteBtn').onclick = async () => {
+      try {
+        await api(`/trips/${trip.id}/reject-quote`, { method: 'POST' });
+        toast('تم رفض السعر، جاري البحث عن سائق آخر...');
+        pollTrip();
+      } catch (e) { toast(e.message); }
+    };
+  } else {
+    document.getElementById('cancelTripBtn').onclick = async () => {
+      try {
+        await api(`/trips/${trip.id}/cancel`, { method: 'POST' });
+        toast('تم إلغاء الرحلة');
+        renderTrip(null);
+      } catch (e) { toast(e.message); }
+    };
+  }
 }
 
 async function pollTrip() {
@@ -207,7 +240,7 @@ async function loadHistory() {
   } catch (e) { /* تجاهل */ }
 }
 function tripStatusAr(s) {
-  return { requested: 'بانتظار السائق', accepted: 'جارية', completed: 'مكتملة', cancelled: 'ملغاة' }[s] || s;
+  return { requested: 'بانتظار السائق', quoted: 'بانتظار موافقتك على السعر', accepted: 'جارية', completed: 'مكتملة', cancelled: 'ملغاة' }[s] || s;
 }
 document.getElementById('refreshHistory').onclick = loadHistory;
 
