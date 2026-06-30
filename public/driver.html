@@ -100,6 +100,14 @@
         <button class="btn-primary" id="completeBtn">إنهاء الرحلة وتسجيل السعر</button>
       </div>
 
+      <div class="card">
+        <div class="row" style="margin-bottom:8px">
+          <h2 style="margin:0">الشكاوى المرتبطة برحلاتي</h2>
+          <button class="btn-sm btn-ghost" id="refreshComplaints" style="flex:0 0 auto">تحديث</button>
+        </div>
+        <div id="driverComplaintsList"><p class="muted">لا توجد شكاوى.</p></div>
+      </div>
+
       <button class="btn-ghost" id="logoutBtn">تسجيل الخروج</button>
     </div>
   </main>
@@ -417,6 +425,25 @@ document.getElementById('logoutBtn').onclick = () => {
   location.reload();
 };
 
+// ---------- الشكاوى المرتبطة بالسائق ----------
+async function loadDriverComplaints() {
+  try {
+    const { complaints } = await api('/complaints/mine');
+    const list = document.getElementById('driverComplaintsList');
+    if (!complaints.length) { list.innerHTML = '<p class="muted">لا توجد شكاوى.</p>'; return; }
+    list.innerHTML = complaints.map(c => `
+      <div class="driver-item" style="display:block">
+        <p style="margin:0 0 4px">${c.description}</p>
+        <p class="muted" style="margin:0">رحلة #${c.tripId}</p>
+        ${c.resolved
+          ? `<p style="margin:6px 0 0"><span class="badge badge-ok">تم اتخاذ قرار</span><br><strong>القرار:</strong> ${c.decision}</p>`
+          : `<span class="badge badge-wait">قيد المراجعة من الإدارة</span>`}
+      </div>
+    `).join('');
+  } catch (e) { /* تجاهل */ }
+}
+document.getElementById('refreshComplaints').onclick = loadDriverComplaints;
+
 function showApp() {
   document.getElementById('authBox').style.display = 'none';
   document.getElementById('appBox').style.display = 'block';
@@ -424,6 +451,7 @@ function showApp() {
   prefetchLocation(); // اطلب إذن الموقع فوراً عند الدخول لتسريع تفعيل الاستعداد لاحقاً
   showIosHintIfNeeded();
   clearAppBadgeIfSupported(); // تصفير أي عداد قديم متبقٍ من جلسة سابقة
+  loadDriverComplaints();
   if ('Notification' in window && Notification.permission === 'granted') {
     subscribeToPush(true); // إعادة الاشتراك بصمت إن كان الإذن ممنوحاً مسبقاً، بدون أي طلب جديد
   }

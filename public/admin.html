@@ -230,15 +230,18 @@ async function loadComplaints() {
         <p>${c.description}</p>
         <p class="muted">رحلة #${c.tripId} · راكب: ${c.riderName} · سائق: ${c.driverName} · بواسطة: ${c.submittedBy === 'rider' ? 'الراكب' : 'السائق'}</p>
         ${c.resolved
-          ? '<span class="badge badge-ok">تمت المعالجة</span>'
-          : `<button class="btn-sm btn-primary" onclick="resolveComplaint(${c.id})">وضع علامة "تمت المعالجة"</button>`}
+          ? `<span class="badge badge-ok">تمت المعالجة</span><p class="muted" style="margin-top:6px"><strong>القرار:</strong> ${c.decision}</p>`
+          : `<button class="btn-sm btn-primary" onclick="resolveComplaint(${c.id})">اتخاذ قرار وإرساله للسائق</button>`}
       </div>
     `).join('');
   } catch (e) { toast(e.message); }
 }
 async function resolveComplaint(id) {
+  const decision = prompt('اكتب القرار/الإجراء المتخذ — سيُرسل فوراً للسائق:');
+  if (decision === null) return;
   try {
-    await api(`/admin/complaints/${id}/resolve`, { method: 'POST' });
+    await api(`/admin/complaints/${id}/resolve`, { method: 'POST', body: { decision } });
+    toast('تم إرسال القرار للسائق');
     loadComplaints(); loadStats();
   } catch (e) { toast(e.message); }
 }

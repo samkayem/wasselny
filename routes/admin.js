@@ -3,7 +3,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { db } = require('../db');
-const { authMiddleware } = require('../utils');
+const { authMiddleware, sendPushToDriver } = require('../utils');
 
 const router = express.Router();
 router.use(authMiddleware('admin'));
@@ -158,10 +158,34 @@ router.get('/complaints', (req, res) => {
   res.json({ complaints });
 });
 
+// الإدارة تتخذ قراراً بخصوص الشكوى — يُحفظ القرار ويُرسل فوراً للسائق المرتبط بها
 router.post('/complaints/:id/resolve', (req, res) => {
+  const { decision } = req.body;
+  if (!decision || !decision.trim()) {
+    return res.status(400).json({ error: 'يجب كتابة القرار/الإجراء المتخذ' });
+  }
   const ref = db.get('complaints').find({ id: Number(req.params.id) });
-  if (!ref.value()) return res.status(404).json({ error: 'الشكوى غير موجودة' });
-  ref.assign({ resolved: true }).write();
+  const complaint = ref.value();
+  if (!complaint) return res.status(404).json({ error: 'الشكوى غير موجودة' });
+
+  ref
+    .assign({
+      resolved: true,
+      decision: decision.trim(),
+      decidedAt: new Date().toISOString(),
+      decisionNotified: false
+    })
+    .write();
+
+  const driver = db.get('drivers').find({ id: complaint.driverId }).value();
+  if (driver) {
+    sendPushToDriver(driver, {
+      title: '📋 قرار الإدارة بخصوص شكوى',
+      body: decision.trim(),
+      url: '/driver.html'
+    });
+  }
+
   res.json({ ok: true });
 });
 
