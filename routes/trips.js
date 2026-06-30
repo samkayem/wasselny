@@ -119,6 +119,8 @@ router.post('/', authMiddleware('rider'), (req, res) => {
     triedDriverIds: [], // سجل من رُفض الطلب منهم أو رُفض سعرهم، لتجنب إعادة عرضه عليهم
     cancelReason: null, // null | 'no_drivers_available' | 'all_quotes_rejected' | 'cancelled_by_rider'
     riderNotified: true,
+    etaMinutes: null,
+    etaCalculatedAt: null,
     createdAt: new Date().toISOString(),
     quotedAt: null,
     acceptedAt: null,
@@ -247,6 +249,28 @@ router.post('/:id/reject-quote', authMiddleware('rider'), (req, res) => {
   res.json({ ok: true });
 });
 
+// السائق يضغط "متابعة الرحلة" — نحسب وقت الوصول التقريبي من موقعه الأخير المعروف إلى نقطة الراكب
+// هذا تقدير وليس تتبعاً حياً (لا يوجد تتبع GPS مستمر بتصميم النسخة الأولى)
+const AVERAGE_CITY_SPEED_KMH = 30; // افتراض سرعة متوسطة داخل المدينة لحساب تقريبي فقط
+router.post('/:id/navigate', authMiddleware('driver'), (req, res) => {
+  const tripRef = db.get('trips').find({ id: Number(req.params.id), driverId: req.user.id });
+  const trip = tripRef.value();
+  if (!trip) return res.status(404).json({ error: 'الطلب غير موجود' });
+  if (trip.status !== 'accepted') {
+    return res.status(409).json({ error: 'لا يمكن بدء التوجه الآن' });
+  }
+
+  const driver = db.get('drivers').find({ id: req.user.id }).value();
+  let etaMinutes = null;
+  if (driver && driver.lat != null && driver.lng != null) {
+    const km = distanceKm(driver.lat, driver.lng, trip.pickupLat, trip.pickupLng);
+    etaMinutes = Math.max(1, Math.round((km / AVERAGE_CITY_SPEED_KMH) * 60));
+  }
+
+  tripRef.assign({ etaMinutes, etaCalculatedAt: new Date().toISOString() }).write();
+  res.json({ ok: true, etaMinutes });
+});
+
 // إنهاء الرحلة — السعر معبّأ مسبقاً بالسعر المتفق عليه، ويمكن تعديله إذا اختلف الواقع الفعلي
 router.post('/:id/complete', authMiddleware('driver'), (req, res) => {
   const { price } = req.body;
@@ -265,7 +289,11 @@ router.post('/:id/complete', authMiddleware('driver'), (req, res) => {
 router.post('/:id/cancel', authMiddleware('rider'), (req, res) => {
   const trip = db.get('trips').find({ id: Number(req.params.id), riderId: req.user.id });
   if (!trip.value()) return res.status(404).json({ error: 'الطلب غير موجود' });
-  if (!['requested', 'quoted', 'accepted'].includes(trip.value().status)) {
+  const status = trip.value().status;
+  if (status === 'accepted') {
+    return res.status(409).json({ error: 'لا يمكن إلغاء الرحلة بعد تأكيد السعر، تواصل مع السائق مباشرة' });
+  }
+  if (!['requested', 'quoted'].includes(status)) {
     return res.status(409).json({ error: 'لا يمكن إلغاء هذه الرحلة' });
   }
   const driverId = trip.value().driverId;

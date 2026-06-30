@@ -358,8 +358,11 @@ document.getElementById('rejectBtn').onclick = async () => {
 
 document.getElementById('navigateBtn').onclick = () => {
   if (!currentTrip) return;
+  // نفتح الخريطة فوراً (قبل أي طلب شبكة) لتجنّب حظر النوافذ المنبثقة في المتصفح
   const url = `https://www.google.com/maps/dir/?api=1&destination=${currentTrip.pickupLat},${currentTrip.pickupLng}`;
   window.open(url, '_blank');
+  // نحسب الوقت التقريبي للوصول في الخلفية ونُرسله للراكب
+  api(`/trips/${currentTrip.id}/navigate`, { method: 'POST' }).catch(() => {});
 };
 
 document.getElementById('completeBtn').onclick = async () => {
